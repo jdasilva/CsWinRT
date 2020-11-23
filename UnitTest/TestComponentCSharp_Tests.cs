@@ -27,6 +27,9 @@ using System.Runtime.InteropServices.WindowsRuntime;
 using Windows.Security.Cryptography;
 using Windows.Security.Cryptography.Core;
 using System.Reflection;
+using Windows.Media.MediaProperties;
+using Windows.Media.Core;
+using Windows.Media.Transcoding;
 
 #if NET5_0
 using WeakRefNS = System;
@@ -70,11 +73,11 @@ namespace UnitTest
             Assert.True(buffLen4.Length == 4);
             Assert.Throws<ArgumentException>(() => buffLen4.GetByte(5)); // shouldn't have a 5th element
             Assert.True(buffLen4.GetByte(0) == 0x02); // make sure we got the 2nd element of the array
-            
+
             arrayLen3.CopyTo(buffLen4); // Array to Buffer copying
             Assert.True(buffLen4.Length == 4);
             Assert.True(buffLen4.GetByte(0) == 0x01); // make sure we updated the first few 
-            Assert.True(buffLen4.GetByte(1) == 0x02); 
+            Assert.True(buffLen4.GetByte(1) == 0x02);
             Assert.True(buffLen4.GetByte(2) == 0x03);
             Assert.True(buffLen4.GetByte(3) == 0x14); // and kept the last one 
 
@@ -136,14 +139,14 @@ namespace UnitTest
         public void TestBufferAsStreamUsingAsBuffer()
         {
             var arr = new byte[] { 0x01, 0x02 };
-            Stream stream = arr.AsBuffer().AsStream();            
+            Stream stream = arr.AsBuffer().AsStream();
             Assert.True(stream != null);
             Assert.True(stream.Length == 2);
         }
 
         [Fact]
         public void TestBufferAsStreamWithEmptyBuffer1()
-        { 
+        {
             var buffer = new Windows.Storage.Streams.Buffer(0);
             Stream stream = buffer.AsStream();
             Assert.True(stream != null);
@@ -265,7 +268,7 @@ namespace UnitTest
 
         [Fact]
         public void TestEmptyBufferCopyTo()
-        { 
+        {
             var buffer = new Windows.Storage.Streams.Buffer(0);
             byte[] array = { };
             buffer.CopyTo(array);
@@ -449,7 +452,7 @@ namespace UnitTest
         [Fact]
         public void TestWriteBuffer()
         {
-            Assert.True(InvokeWriteBufferAsync().Wait(1000)); 
+            Assert.True(InvokeWriteBufferAsync().Wait(1000));
         }
 
         [Fact]
@@ -1737,11 +1740,25 @@ namespace UnitTest
         [Fact]
         public void TestMatrix3DTypeMapping()
         {
-            var matrix3D = new Matrix3D {
-                M11 = 11, M12 = 12, M13 = 13, M14 = 14,
-                M21 = 21, M22 = 22, M23 = 23, M24 = 24,
-                M31 = 31, M32 = 32, M33 = 33, M34 = 34,
-                OffsetX = 41, OffsetY = 42, OffsetZ = 43,M44 = 44 };
+            var matrix3D = new Matrix3D
+            {
+                M11 = 11,
+                M12 = 12,
+                M13 = 13,
+                M14 = 14,
+                M21 = 21,
+                M22 = 22,
+                M23 = 23,
+                M24 = 24,
+                M31 = 31,
+                M32 = 32,
+                M33 = 33,
+                M34 = 34,
+                OffsetX = 41,
+                OffsetY = 42,
+                OffsetZ = 43,
+                M44 = 44
+            };
 
             TestObject.Matrix3DProperty = matrix3D;
             Assert.Equal(matrix3D.M11, TestObject.Matrix3DProperty.M11);
@@ -1790,10 +1807,22 @@ namespace UnitTest
         {
             var matrix4x4 = new Matrix4x4
             {
-                M11 = 11, M12 = 12, M13 = 13, M14 = 14,
-                M21 = 21, M22 = 22, M23 = 23, M24 = 24,
-                M31 = 31, M32 = 32, M33 = 33, M34 = 34,
-                M41 = 41, M42 = 42, M43 = 43, M44 = 44
+                M11 = 11,
+                M12 = 12,
+                M13 = 13,
+                M14 = 14,
+                M21 = 21,
+                M22 = 22,
+                M23 = 23,
+                M24 = 24,
+                M31 = 31,
+                M32 = 32,
+                M33 = 33,
+                M34 = 34,
+                M41 = 41,
+                M42 = 42,
+                M43 = 43,
+                M44 = 44
             };
             TestObject.Matrix4x4Property = matrix4x4;
             Assert.Equal(matrix4x4.M11, TestObject.Matrix4x4Property.M11);
@@ -2177,8 +2206,8 @@ namespace UnitTest
 
             static void TestObject() => MakeObject();
 
-            static (IInitializeWithWindow, IWindowNative) MakeImports() 
-            { 
+            static (IInitializeWithWindow, IWindowNative) MakeImports()
+            {
                 var obj = MakeObject();
                 var initializeWithWindow = obj.As<IInitializeWithWindow>();
                 var windowNative = obj.As<IWindowNative>();
@@ -2188,7 +2217,7 @@ namespace UnitTest
             static void TestImports()
             {
                 var (initializeWithWindow, windowNative) = MakeImports();
-                
+
                 GC.Collect();
                 GC.WaitForPendingFinalizers();
 
@@ -2229,7 +2258,7 @@ namespace UnitTest
             Assert.NotNull(cryptoKey);
         }
 
-        [Fact(Skip="Operation not supported")]
+        [Fact]
         public void TestIBindableIterator()
         {
             CustomBindableIteratorTest bindableIterator = new CustomBindableIteratorTest();
@@ -2251,5 +2280,126 @@ namespace UnitTest
             CustomBindableVectorTest vector = new CustomBindableVectorTest();
             Assert.NotNull(vector);
         }
+
+#if NET5_0
+        [Fact]
+        public void TestMediaTranscoder()
+        {
+            new MediaTranscoderTester().StartMediaTranscodeSession("C:\\out.mp4", 1920, 1080, 25).Wait(10000);
+        }
+
+        public partial class MediaTranscoderTester
+        {
+
+            private async void Window_Loaded(object sender, RoutedEventArgs e)
+            {
+                await StartMediaTranscodeSession("out.mp4", 1920, 1080, 25);
+            }
+
+            private void MediaStreamSource_Starting(MediaStreamSource sender, MediaStreamSourceStartingEventArgs args)
+            {
+                args.Request.SetActualStartPosition(TimeSpan.FromMilliseconds(0));
+            }
+
+            private void MediaStreamSource_Closed(MediaStreamSource sender, MediaStreamSourceClosedEventArgs args)
+            {
+            }
+
+            private async void MediaStreamSource_SampleRequested8bpp(MediaStreamSource sender, MediaStreamSourceSampleRequestedEventArgs args)
+            {
+                if (_frames > 200)
+                {
+                    args.Request.Sample = null;
+                    return;
+                }
+
+                try
+                {
+                    var deferral = args.Request.GetDeferral();
+
+                    await Task.Delay(1000 / 25);
+
+                    if (_firstFrameTime == default(DateTimeOffset))
+                        _firstFrameTime = DateTimeOffset.Now;
+
+                    TimeSpan frameTime = DateTimeOffset.Now - _firstFrameTime;
+
+                    _frames++;
+
+                    Console.WriteLine("Frame : " + _frames);
+
+                    args.Request.Sample = MediaStreamSample.CreateFromBuffer(_buffer, frameTime);
+                    deferral.Complete();
+                }
+                catch (Exception)
+                {
+                    // Could not retrieve frame -> signal finish
+                    args.Request.Sample = null;
+                }
+            }
+
+            public async Task<bool> StartMediaTranscodeSession(string outputFile, uint videoWidth, uint videoHeight, uint framerate)
+            {
+                FileStream outputStream;
+                try
+                {
+                    outputStream = File.Create(outputFile);
+                }
+                catch (Exception)
+                {
+                    return false;
+                }
+
+                _buffer = new Windows.Storage.Streams.Buffer(videoWidth * videoHeight * 3);
+
+                VideoEncodingProperties videoProperties = VideoEncodingProperties.CreateUncompressed(MediaEncodingSubtypes.Rgb24, videoWidth, videoHeight);
+
+                VideoStreamDescriptor videoDescriptor = new VideoStreamDescriptor(videoProperties);
+
+
+                // Create our MediaStreamSource
+                MediaStreamSource mediaStreamSource = new MediaStreamSource(videoDescriptor);
+                mediaStreamSource.BufferTime = TimeSpan.FromSeconds(0);
+                mediaStreamSource.Starting += MediaStreamSource_Starting;
+                mediaStreamSource.Closed += MediaStreamSource_Closed;
+                mediaStreamSource.SampleRequested += MediaStreamSource_SampleRequested8bpp;
+
+                // Create our transcoder
+                MediaTranscoder transcoder = new MediaTranscoder();
+                transcoder.HardwareAccelerationEnabled = true;
+
+                MediaEncodingProfile encodingProfile = new MediaEncodingProfile();
+                encodingProfile.Container.Subtype = "MPEG4";
+                encodingProfile.Video.Subtype = "H264";
+                encodingProfile.Video.Width = videoWidth;
+                encodingProfile.Video.Height = videoHeight;
+                encodingProfile.Video.Bitrate = BITRATE;
+                encodingProfile.Video.FrameRate.Numerator = framerate;
+                encodingProfile.Video.FrameRate.Denominator = 1;
+                encodingProfile.Video.PixelAspectRatio.Numerator = 1;
+                encodingProfile.Video.PixelAspectRatio.Denominator = 1;
+
+                var transcode = await transcoder.PrepareMediaStreamSourceTranscodeAsync(mediaStreamSource, outputStream.AsRandomAccessStream(), encodingProfile);
+
+                if (transcode.CanTranscode == false)
+                {
+                    return false;
+                }
+
+                // Start transcode operation
+                await transcode.TranscodeAsync();
+
+                outputStream.Flush();
+                outputStream.Close();
+
+                return true;
+            }
+            Windows.Storage.Streams.Buffer _buffer;
+            DateTimeOffset _firstFrameTime;
+            uint _frames = 0;
+
+            private const int BITRATE = 3000000;
+        }
+#endif
     }
 }
