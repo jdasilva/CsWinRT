@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq.Expressions;
 using System.Reflection;
@@ -73,6 +74,34 @@ namespace WinRT
             // and consumers get a string object for a Windows.Foundation.IReference<String>.
             // We need to do the same thing for System.Type because there can be multiple WUX.Interop.TypeName's
             // for a single System.Type.
+
+            // Resurrect IWinRTObject's disposed IObjectReferences, if necessary
+            // Reflection for now, to avoid API breaking change.  In next feature release,
+            // should be implemented as Resurrect methods on IWinRTObject, IObjectReference.
+            static bool ResurrectObjectReference(IObjectReference objRef)
+            {
+                var disposedField = objRef.GetType().GetField("disposed", BindingFlags.NonPublic | BindingFlags.Instance);
+                if (!(bool)disposedField.GetValue(objRef)) 
+                    return false;
+                disposedField.SetValue(objRef, false);
+                GC.ReRegisterForFinalize(objRef);
+                return true;
+            }
+            if (rcw is IWinRTObject winrtObj)
+            {
+                if (ResurrectObjectReference(winrtObj.NativeObject))
+                { 
+                    var cacheProp = winrtObj.GetType().GetProperty("WinRT.IWinRTObject.QueryInterfaceCache", BindingFlags.NonPublic | BindingFlags.Instance);
+                    var cache = (ConcurrentDictionary<RuntimeTypeHandle, IObjectReference>)cacheProp.GetValue(winrtObj);
+                    foreach (var item in cache)
+                    {
+                        if (item.Value is IObjectReference cachedObj)
+                        {
+                            ResurrectObjectReference(cachedObj);
+                        }
+                    }
+                }
+            }
 
             return rcw switch
             {
